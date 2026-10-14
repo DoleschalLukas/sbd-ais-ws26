@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Drink Menu & Orders</title>
+    <script src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+
+        h1, h2 {
+            color: #333;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        li {
+            background: #f4f4f4;
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        #totalledChart {
+            min-height: 500px;
+        }
+        #ordersChart {
+            min-height: 500px;
+        }
+    </style>
+</head>
+<body>
+<h1>Drink Menu</h1>
+<ul id="menu-list">Loading menu...</ul>
+
+<h2>Total Orders</h2>
+<div id="totalledChart"></div>
+
+<h2>Order History </h2>
+<div id="ordersChart"></div>
+
+<script>
+    const barColors = ['#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#ffd92f', '#e5c494', '#b3b3b3'];
+
+    const menuList = document.getElementById("menu-list");
+    const totalledChartDiv = document.getElementById("totalledChart");
+    const ordersChartDiv = document.getElementById("ordersChart");
+
+    const drinkMap = new Map(); // drink_id => drink object
+
+    // Fetch and display the drink menu
+    fetch("/api/menu")
+        .then(res => res.json())
+        .then(drinks => {
+            menuList.innerHTML = "";
+            drinks.forEach(drink => {
+                drinkMap.set(drink.id, drink);
+                const li = document.createElement("li");
+                li.textContent = `${drink.name} - $${drink.price.toFixed(2)} (${drink.description})`;
+                menuList.appendChild(li);
+            });
+
+            // After loading drinks, load orders
+            loadOrderTotalled();
+            loadOrders();
+        })
+        .catch(err => {
+            console.error("Failed to load menu:", err);
+            menuList.innerHTML = "<li>Error loading menu.</li>";
+        });
+
+    function loadOrderTotalled() {
+        fetch("/api/order/totalled")
+            .then(res => res.json())
+            .then(orders => {
+                const labels = [];
+                const values = [];
+                const total_cost = [];
+
+                for (const [drinkId, total] of Object.entries(orders)) {
+                    const drink = drinkMap.get(parseInt(drinkId));
+                    if (drink) {
+                        labels.push(drink.name);
+                        values.push(total);
+                        total_cost.push((drink.price * total).toFixed(2) + " €");
+                    }
+                }
+
+                if (labels.length === 0) {
+                    totalledChartDiv.textContent = "No orders to display.";
+                    return;
+                }
+
+                const data = [{
+                    x: labels,
+                    y: values,
+                    type: 'bar',
+                    text: total_cost,
+                    textposition: 'auto',
+                    marker: {
+                        color: barColors,
+                        line: {
+                            color: 'rgba(0, 0, 0, 0.7)',
+                            width: 0.5
+                        }
+                    }
+                }];
+
+                const layout = {
+                    title: 'Total Drink Orders',
+                    xaxis: {title: 'Drink'},
+                    yaxis: {title: 'Number of Orders', dtick: 1},
+                    margin: {t: 50, l: 50, r: 30, b: 80}
+                };
+
+                Plotly.newPlot('totalledChart', data, layout, {responsive: true});
+            })
+            .catch(err => {
+                console.error("Failed to load orders:", err);
+                totalledChartDiv.textContent = "Error loading orders.";
+            });
+    }
+
+    function loadOrders() {
+        fetch("/api/order/all")
+            .then(res => res.json())
+            .then(orders => {
+                if (orders.length === 0) {
+                    ordersChartDiv.textContent = "No orders to display.";
+                    return;
+                }
+
+                // Step 1: Sort by time
+                orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+                // Step 2: Accumulate orders over time
+                const timeMap = new Map();
+                let cumulativeTotal = 0;
+
+                for (const order of orders) {
+                    const time = new Date(order.created_at);
+                    const timeKey = time.toISOString().slice(0, 16); // Round to minute
+                    const existing = timeMap.get(timeKey) || 0;
+                    timeMap.set(timeKey, existing + order.amount);
+                }
+
+                // Step 3: Generate cumulative data
+                const sortedTimes = Array.from(timeMap.keys()).sort();
+                const times = [];
+                const cumulativeValues = [];
+
+                for (const timeKey of sortedTimes) {
+                    cumulativeTotal += timeMap.get(timeKey);
+                    times.push(timeKey);
+                    cumulativeValues.push(cumulativeTotal);
+                }
+
+                // Step 4: Plot
+                const trace = {
+                    x: times,
+                    y: cumulativeValues,
+                    mode: 'lines+markers',
+                    type: 'scatter',
+                    name: 'Cumulative Orders',
+                    line: { shape: 'linear', color: 'blue' }
+                };
+
+                const layout = {
+                    title: 'Cumulative Orders Over Time',
+                    xaxis: { title: 'Time' },
+                    yaxis: { title: 'Total Orders' }
+                };
+
+                Plotly.newPlot('ordersChart', [trace], layout);
+            })
+            .catch(err => {
+                console.error("Failed to load orders:", err);
+                ordersChartDiv.textContent = "Error loading orders.";
+            });
+    }
+</script>
+</body>
+</html>
