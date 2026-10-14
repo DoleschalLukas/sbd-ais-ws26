@@ -12,7 +12,7 @@ func (m Message) Print() {
 
 func main() {
 	msg := Message{
-		Text: "Hello, World!",
+		Text: "Hello, World!"
 	}
 	msg.Print()
 
