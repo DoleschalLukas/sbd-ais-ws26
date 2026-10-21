@@ -1,0 +1,68 @@
+definitions:
+  Drink:
+    properties:
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        description: 'todo Add fields: Name, Price, Description with suitable types'
+        type: string
+      price:
+        type: number
+    type: object
+  Order:
+    properties:
+      amount:
+        type: integer
+      created_at:
+        description: 'todo Add fields: CreatedAt (time.Time), Amount with suitable
+          types'
+        type: string
+      drink_id:
+        description: foreign key
+        type: integer
+    type: object
+info:
+  contact:
+    name: Your Name
+  description: This system enables drink orders and should not be used for the forbidden
+    Hungover Games.
+  title: Order System
+paths:
+  /api/menu:
+    get:
+      description: Returns the menu of all drinks
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/Drink'
+            type: array
+      tags:
+      - Menu
+  /api/order:
+    post:
+      consumes:
+      - application/json
+      description: Adds an order to the db
+      parameters:
+      - description: Order
+        in: body
+        name: b
+        required: true
+        schema:
+          $ref: '#/definitions/Order'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+      tags:
+      - Order
+swagger: "2.0"

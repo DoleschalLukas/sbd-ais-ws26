@@ -1,7 +1,9 @@
 package rest
 
 import (
+	"encoding/json"
 	"net/http"
+	"ordersystem/model"
 	"ordersystem/repository"
 
 	"github.com/go-chi/render"
@@ -17,12 +19,33 @@ func GetMenu(db *repository.DatabaseHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// todo
 		// get slice from db
-		// render.Status(r, http.StatusOK)
-		// render.JSON(w, r, <your-slice>)
+		orders := db.GetOrders()
+		render.Status(r, http.StatusOK)
+		render.JSON(w, r, orders)
 	}
 }
 
 // todo create GetOrders /api/order/all
+func GetOrdersTotal(db *repository.DatabaseHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Call method we created earlier to get map of totals
+		totals := db.GetTotalledOrders()
+
+		render.Status(r, http.StatusOK)
+		render.JSON(w, r, totals)
+	}
+}
+
+func GetOrders(db *repository.DatabaseHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Fetch orders from database
+		orders := db.GetOrders()
+
+		// Return slice of orders
+		render.Status(r, http.StatusOK)
+		render.JSON(w, r, orders)
+	}
+}
 
 // todo create GetOrdersTotal /api/order/total
 
@@ -37,11 +60,16 @@ func GetMenu(db *repository.DatabaseHandler) http.HandlerFunc {
 // @Router 			/api/order [post]
 func PostOrder(db *repository.DatabaseHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// todo
-		// declare empty order struct
-		// err := json.NewDecoder(r.Body).Decode(&<your-order-struct>)
-		// handle error and render Status 400
-		// add to db
+		var newOrder model.Order
+		err := json.NewDecoder(r.Body).Decode(&newOrder)
+		if err != nil {
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, map[string]string{"error": "Invalid request payload"})
+			return
+		}
+		db.AddOrder(&newOrder)
+
+		// Render success response
 		render.Status(r, http.StatusOK)
 		render.JSON(w, r, "ok")
 	}
