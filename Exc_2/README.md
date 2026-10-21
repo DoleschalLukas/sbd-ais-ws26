@@ -125,6 +125,8 @@ LIMIT 10;
 > **Think about it:** does `LIMIT 10` make queries (a) and (b) cheaper?
 > Compare with and without it using `EXPLAIN ANALYZE`.
 
+Seems like it does not make the Query any cheaper
+
 ## Part 2 — Activities (graded)
 
 ### Activity 2.1 — PostgreSQL Analytical Queries (E-commerce)
@@ -147,22 +149,64 @@ Load the generated data into PostgreSQL in a **new table** called `orders`.
 Write the `CREATE TABLE` yourself (choose sensible types for each column) and
 use the same `\COPY` pattern as in section 3.3.
 
+CREATE TABLE orders (
+    customer_name VARCHAR(100),
+    product_category VARCHAR(100),
+    quantity INTEGER,
+    price_per_unit NUMERIC(10,2),
+    order_date DATE,
+    country VARCHAR(100)
+);
+
+
 Using SQL ([list of supported SQL commands](https://www.postgresql.org/docs/current/sql-commands.html)),
 answer the following questions:
 
 **A.** Which order has the highest `price_per_unit`?
 
+| customer_name | product_category | quantity | price_per_unit | order_date | country |
+|---|---|---:|---:|---|---|
+| Emma Brown | Automotive | 3 | 2000.00 | 2024-10-11 | Italy |
+
+
 **B.** What are the top 3 product categories with the highest total quantity
 sold across all orders?
+
+| product_category | total_quantity |
+|---|---:|
+| Health & Beauty | 300842 |
+| Electronics | 300804 |
+| Toys | 300598 |
 
 **C.** What is the total revenue per product category?
 (Revenue = `price_per_unit × quantity`)
 
+| product_category | total_revenue |
+|---|---:|
+| Automotive | 306589798.86 |
+| Electronics | 241525009.45 |
+| Home & Garden | 78023780.09 |
+| Sports | 61848990.83 |
+| Health & Beauty | 46599817.89 |
+| Office Supplies | 38276061.64 |
+| Fashion | 31566368.22 |
+| Toys | 23271039.02 |
+
 **D.** Who are the top 5 customers by total spending?
+
+| customer_name | total_spending |
+|---|---:|
+| Carol Taylor | 991179.18 |
+| Nina Lopez | 975444.95 |
+| Daniel Jackson | 959344.48 |
+| Carol Lewis | 947708.57 |
+| Daniel Young | 946030.14 |
 
 **E.** Look at the spending totals in D — and at how many orders each of those
 customers has. What do you notice? Open `ecommerce/dataset_generator.py` and
 explain *why* the data looks like this.
+
+Names get randomly generated there are 32 first and 33 lastnames. This lets us create 32*33 = 1056 unique people. However our data creates a million people. This means that every person also exists nearly 1000 times in our dataset. Since every order has between 1 and 5 items with price depending on the category we can expect aggregation by name to all yield similar sums.
 
 ### Activity 2.2 — Why Is This Self-Join So Slow?
 
@@ -194,16 +238,28 @@ Run the self-join (with `\timing on`) on each of the three tables and fill in:
 
 | rows in table | join result (`COUNT(*)`) | time |
 |---|---|---|
-| 50 000 | | |
-| 100 000 | | |
-| 200 000 | | |
+| 50 000 | 27501822 | 1571.425 ms|
+| 100 000 | 109946508 | 6280.004 ms |
+| 200 000 | 439395606 | 21336.244 ms |
 
 When the input **doubles**, by what factor do the result and the time grow?
 Use this to **predict** the result size and the runtime on `people_big` (1M rows).
 
+when the input doubles the runtime and result grows by 4x we have quadratic growth.
+
+Going from 200 000 to 1M is 5x increase therefore factor 5² = 25
+Time 1M = 533,406.1 ms
+Result 1M = 10,984,890,150
+
+
 **Step 2 — Does an index help?** Create an index on `country` of `people_100k`,
 run `ANALYZE people_100k;`, and repeat the query. Did the time change? Use
 `EXPLAIN ANALYZE` to support your answer. Why does (or doesn't) the index help?
+
+Previous:  6280 ms
+New:       6791 ms
+
+Since we are effectively just mapping 110M entries to eachother an index does not really change much. Indexes are useful when finding few points of data quickly.
 
 **Step 3 — Rewrite it.** The query only wants the *number* of matching pairs,
 not the pairs themselves. If a country has *k* people, how many pairs does it
@@ -212,16 +268,38 @@ without a join**. Check that it returns exactly the same result as the join on
 `people_100k`, then run it on `people_big` and compare its runtime with your
 prediction from Step 1.
 
+We can group our data by country and sum all combinations for each country.
+
+SELECT SUM(person_count * person_count) AS total_pairs
+FROM (
+    SELECT country, COUNT(*) AS person_count
+    FROM people_100k
+    WHERE country IS NOT NULL
+    GROUP BY country
+) sub;
+
+Time: 69.477ms
+Previous: 6280 ms
+
 **Step 4 — Discussion (submit in writing).** Considering **scalability** and
 **efficiency**, which approaches and/or optimizations can be applied to improve
 this kind of query in a real system? Discuss at least:
 
 - what the rewrite in Step 3 tells you about adding more hardware or an index;
+
+The rewrite in Step 3 is a clear sign that not every problem can be solved by indexing or spending more on bigger better hardware. Some problems need to be optimized otherwise the whole system may crumble.
+
 - what you would do if the business actually needed **the pairs themselves**
   (not just their count) — would a bigger machine or a cluster help, and how
   much?
+
+I would assume that it would result in faster processing time. I calculated that 1M parameters for example would need about 10 minutes. Using a second cluster to split it in half we could optimally cut the time required in half. However this will not resolve the underlying problem that our data will scale astronomically if we want 2 million or even more data points paired. It might make sense to think of a solution to decrease what is being mapped or how.
+
 - the limits of an **OLTP database** for this workload, especially in a
   **large-scale cloud environment**.
+
+Usually OLTP systems process small transactions. Small inserts and reads without much overhead. When we now try to compute our mega join we will heavily overload memory, cpu and all processes. This could negatively impact customer experience during execution. Also heavy Cloud Computing becomes very expensive which should be avoided.
+
 
 > **Optional:** support your answer with a diagram, SQL or code.
 
