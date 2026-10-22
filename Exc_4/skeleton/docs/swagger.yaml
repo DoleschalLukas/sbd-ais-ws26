@@ -1,0 +1,120 @@
+definitions:
+  DeletedAt:
+    properties:
+      time:
+        type: string
+      valid:
+        description: Valid is true if Time is not NULL
+        type: boolean
+    type: object
+  Drink:
+    properties:
+      created_at:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/DeletedAt'
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      price:
+        type: number
+      updated_at:
+        type: string
+    type: object
+  Order:
+    properties:
+      amount:
+        type: integer
+      created_at:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/DeletedAt'
+      drink:
+        $ref: '#/definitions/Drink'
+      drink_id:
+        description: |-
+          Relationships
+          foreign key
+        type: integer
+      id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: This system enables drink orders and should not be used for the forbidden
+    Hungover Games.
+  title: Order System
+paths:
+  /api/menu:
+    get:
+      description: Returns the menu of all drinks
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/Drink'
+            type: array
+        "500":
+          description: Internal Server Error
+      tags:
+      - Menu
+  /api/order:
+    post:
+      consumes:
+      - application/json
+      description: Adds an order to the db
+      parameters:
+      - description: Order
+        in: body
+        name: b
+        required: true
+        schema:
+          $ref: '#/definitions/Order'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      tags:
+      - Order
+  /api/order/all:
+    get:
+      description: Returns all orders
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/Order'
+            type: array
+        "500":
+          description: Internal Server Error
+      tags:
+      - Order
+  /api/order/totalled:
+    get:
+      description: Gets totalled orders
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "500":
+          description: Internal Server Error
+      tags:
+      - Order
+swagger: "2.0"
