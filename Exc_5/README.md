@@ -323,7 +323,7 @@ What to submit:
 The design and the explanations count more than an all-`PASS` scoreboard:
 a failure you can explain is worth more than a pass you cannot.
 
-**Deadline: 10.11.2026**, for the push and the Moodle link. An exercise
+**Deadline: 11.11.2026, 18:00**, for the push and the Moodle link. An exercise
 that is submitted too late, or without the link in Moodle, will be
 considered missing.
 
