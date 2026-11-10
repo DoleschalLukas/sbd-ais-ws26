@@ -80,6 +80,9 @@ prints the partition and offset of each event.
 *Predict:* run it twice. Does `user-1` land in the same partition both
 times? Where do events without a key go?
 
+*Prediction:* I think that user-1 will not change partition and end up in the same one twice.
+Without a key I would predict that there is some internal alogrithm that decides how it gets split.
+
 ```bash
 python3 producer.py
 python3 producer.py
@@ -99,6 +102,9 @@ one after the other; wait each time until the new consumer prints its
 partitions.
 
 *Predict:* three consumers, two partitions. Who gets what?
+
+*Prediction:* Consumer A: Gets partition 0 or 1. Consumer B: Gets the other partition.
+Consumer C: has no corresponding partition.
 
 ```bash
 python3 consumer.py --group dashboard --name A
@@ -121,6 +127,8 @@ consumer of a **second** group in the producer's terminal:
 
 Stop all consumers (`Ctrl+C`). *Predict:* you send 20 more events. Where
 does `dashboard` continue when `A` comes back?
+
+*Prediction:* It continues from the last commited offset of dashboard.
 
 ```bash
 python3 producer.py
@@ -235,11 +243,18 @@ detector polls that table for new rows.
    115–129 and commits at once. A row gets its `id` when it is inserted,
    but others see it only when it is committed. Which rows does the
    detector see when it polls in between, and which `id` does it remember?
+  
+  Row IDs get assigned before transactions get commited. So higher IDs might appear before lower IDs so as soon as the detector sees rows >115 100-114 gets skipped eventhough they exist in the table.
+
 2. Start the detector again, then the full plant
    (`python3 plant.py --sink postgres`), and let both run for ~60 s. Watch
    the detector's lines **while the plant runs**: what happens to `delay`,
    `backlog` and `missing`, and why? Stop the detector right after the
    plant: afterwards it only works through its backlog.
+
+Delay grew to 37.6 s and backlog to 22,529 rows
+Missing rose to 76
+As soon as I stopped the plant the backlog started catching up
 
 ### Stage B — Decide
 
@@ -264,6 +279,18 @@ Write it down as a short decision record (half a page: options, decision,
 reasons, numbers). PostgreSQL stays the system of record for the machine
 registry in any case.
 
+I would use Kafka for reading the data of the sensors while storing the data in a PostgreSQL database.
+
+Option 1: Using multiple machines could satisfy R1 and improve R3 but would require quite a lot of database capacity and finine tuning if we expected 100,000readings/sec. R2 would need a desgnated consumption mechanism since pollers wont fix the issue of IDs being skipped due to them being allocated before a commit. Since we use multiple separate archive and dashboard pollers, we do not meet R4 with this option.
+
+Option 2: 
+Going with option 2 would satisfy R1 since Kafka supports it by distributing readings across partitions. Using the id of each machine would make sure that each machines reading is kept in one partition, which satisfies R2 if sequential, restart, retries and state get handled. With enough detector capacity R3 might be satisfied. Separate groups for detection, archiving dasborading would satisfy R4 with each maintaining their own position without polling PostgreSQL.
+
+Capacity:
+With 3ms per reading one detector reads about 333 readings/s meaning that we would need atleast 2 detectors to accomodate our 600 readings/s. If we now scaled up to 100,000 readinds/s we would need about 300 detectors to accomodate all. Now however every detector is always fully utilised meaning we have no recovery capacity. This means more realistic are 350-400 detectors.
+
+The Tipping Point:
+Polling with PostgreSQL might be reasonable for low rates and only a few consumers. We are however dealing with very large constant data which is where Kafka starts too shine. We need parallel processing and several independent consumers. 
 ### Stage C — Challenge: Build the core (Optional)
 
 The group already operates Kafka (it is in `docker-compose.yml`), so you
@@ -322,6 +349,7 @@ What to submit:
 
 The design and the explanations count more than an all-`PASS` scoreboard:
 a failure you can explain is worth more than a pass you cannot.
+
 
 **Deadline: 11.11.2026, 18:00**, for the push and the Moodle link. An exercise
 that is submitted too late, or without the link in Moodle, will be
