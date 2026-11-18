@@ -1,0 +1,58 @@
+# Activity 6.3 (optional): a Kafka cluster with 1 KRaft controller and 3 brokers.
+# Start it from this folder with:  docker compose up -d
+name: kafka-cluster
+
+x-broker: &broker
+  image: apache/kafka:4.1.1
+  depends_on:
+    - controller
+
+x-broker-env: &broker-env
+  PATH: /opt/kafka/bin:/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  CLUSTER_ID: hgb-bigdata-cluster-06
+  KAFKA_PROCESS_ROLES: broker
+  KAFKA_CONTROLLER_QUORUM_VOTERS: 100@controller:9093
+  KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+  KAFKA_LISTENERS: PLAINTEXT://:9092
+  KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+  KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+  KAFKA_HEAP_OPTS: -Xmx512m -Xms512m
+
+services:
+  controller:
+    image: apache/kafka:4.1.1
+    container_name: controller
+    environment:
+      PATH: /opt/kafka/bin:/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      CLUSTER_ID: hgb-bigdata-cluster-06
+      KAFKA_NODE_ID: 100
+      KAFKA_PROCESS_ROLES: controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 100@controller:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: CONTROLLER://:9093
+      KAFKA_HEAP_OPTS: -Xmx256m -Xms256m
+
+  broker-1:
+    <<: *broker
+    container_name: broker-1
+    environment:
+      <<: *broker-env
+      KAFKA_NODE_ID: 1
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-1:9092
+
+  broker-2:
+    <<: *broker
+    container_name: broker-2
+    environment:
+      <<: *broker-env
+      KAFKA_NODE_ID: 2
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-2:9092
+
+  broker-3:
+    <<: *broker
+    container_name: broker-3
+    environment:
+      <<: *broker-env
+      KAFKA_NODE_ID: 3
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-3:9092

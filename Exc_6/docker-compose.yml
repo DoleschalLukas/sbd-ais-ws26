@@ -1,0 +1,99 @@
+services:
+  # ----------------------------------------
+  # PostgreSQL 18 (logical replication enabled for Debezium CDC)
+  # ----------------------------------------
+  postgres:
+    image: postgres:18.1
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespw
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      # Postgres 18+ stores its data under /var/lib/postgresql
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+    # wal_level=logical: the write-ahead log keeps enough detail for CDC
+    command: ["postgres", "-c", "wal_level=logical"]
+
+  # ----------------------------------------
+  # Kafka 4.1 — single node, KRaft mode (broker + controller, no ZooKeeper)
+  # ----------------------------------------
+  kafka:
+    image: apache/kafka:4.1.1
+    container_name: kafka
+    ports:
+      - "9092:9092"   # clients on your machine (Python scripts) and inside the container
+    environment:
+      # Kafka CLI tools (kafka-topics.sh, ...) on the PATH for `docker exec`
+      PATH: /opt/kafka/bin:/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      CLUSTER_ID: hgb-bigdata-kafka-01
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # EXTERNAL: localhost:9092 (your machine)  INTERNAL: kafka:29092 (other containers)
+      KAFKA_LISTENERS: EXTERNAL://:9092,INTERNAL://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # a single broker cannot hold more than one replica
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
+      # start consumer groups immediately (default waits 3 s for more members)
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 5s
+      retries: 20
+
+  # ----------------------------------------
+  # Kafka Connect with the Debezium connectors
+  # ----------------------------------------
+  connect:
+    image: quay.io/debezium/connect:3.3
+    container_name: connect
+    ports:
+      - "8083:8083"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: connect-cluster
+      CONFIG_STORAGE_TOPIC: connect-configs
+      OFFSET_STORAGE_TOPIC: connect-offsets
+      STATUS_STORAGE_TOPIC: connect-statuses
+      # JSON messages that carry their own schema: {"schema": ..., "payload": ...}
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+
+  # ----------------------------------------
+  # Web UI for Kafka: topics, messages, consumer groups
+  # ----------------------------------------
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:v1.3.0
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: debezium
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://connect:8083
+
+volumes:
+  pgdata:

@@ -1,0 +1,16 @@
+{
+  "name": "fraud-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "postgres",
+    "database.password": "postgrespw",
+    "database.dbname": "mydb",
+    "topic.prefix": "fraud",
+    "plugin.name": "pgoutput",
+    "decimal.handling.mode": "double",
+    "table.include.list": "public.transactions",
+    "slot.name": "fraudslot"
+  }
+}
