@@ -11,6 +11,10 @@
     "plugin.name": "pgoutput",
     "decimal.handling.mode": "double",
     "table.include.list": "public.transactions",
-    "slot.name": "fraudslot"
+    "slot.name": "fraudslot",
+    "topic.creation.default.partitions": "6",
+    "topic.creation.default.replication.factor": "1",
+    "message.key.columns": "public.transactions:user_id"
+
   }
 }
