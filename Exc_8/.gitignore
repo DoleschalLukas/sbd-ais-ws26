@@ -1,0 +1,24 @@
+# Everything the jobs write (lake, staging, state, checkpoints, the lecture demo's output);
+# keep only the mount point. tools/ stays in the repo.
+data/*
+!data/.gitkeep
+
+# Student notebooks — keep the mount point, not the contents
+notebooks/*
+!notebooks/.gitkeep
+!notebooks/exercise8.ipynb
+.ipynb_checkpoints/
+
+# Spark scratch
+spark-warehouse/
+spark-events/
+
+# Lecture slides — distributed separately (Moodle), not via the exercise repo
+lecture.pdf
+
+# INSTRUCTOR-ONLY — answer key, measurements and session notes.
+# Do NOT commit this to a student-facing repo.
+fixes.txt
+
+# INSTRUCTOR-ONLY — end-to-end test harness, solutions and archived revisions.
+instructor/
